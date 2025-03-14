@@ -1,0 +1,492 @@
+---
+title: "seed-disperser-diversity"
+author: "Sarah Supp"
+date: "2025-03-03"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+##Code for Eastern redcedar avian seed disperser project (c) 2025, Supp
+(PI), Wisnefski, and La Sorte
+[supps\@denison.edu](mailto:supps@denison.edu){.email} Denison
+University Code is under development, part of NSF Multi-Institution
+Collaborative Award (2019-2025)
+
+Birds evaluated include:
+
+-   Cedar Waxwing (CEWA) *Bombycilla cedrorum*
+-   Robin (ROBI) *Turdus migratorius*
+-   Wood Thrush (WOTH) *Hylocichla mustelina*
+-   Yellow-rumped Warbler (YEWA) *setophaga coronata*
+-   Blue Jay (BLJA) *Cyanocitta cristata*
+-   European Starling (EUST) *Sturnus vulgaris*
+-   Eastern Bluebird (EABL) *Sialia sialis*
+-   Northern Mockingbird (NOMO) *Mimus polyglottos*
+-   Downy Woodpecker (DOWO) *Dryobates pubescens*
+-   Eastern Meadowlark (EAME) *Sturnella magna*
+-   White-breasted Nuthatch (WHNU) *Sitta carolinensis*
+-   Purple Finch (PUFI) *Haemorhous purpureus*
+-   Northern Cardinal (NOCA) *Cardinalis cardinalis*
+-   Dark-eyed Junco (DAJU) *Junco hyemalis*
+-   American Crow (AMCR) *Corvus brachyrhynchos*
+
+The inputs to this code file are the results from a community-level
+analysis, shared by collaborator La Sorte. This includes for each
+hexagon cell (POLYFID) and year (16 winter seasons from 2008 to 2023)
+the number of target species (S; range=0-15), three diversity metrics
+(est; richness, shannon, simpson), and survey completeness estimates
+(sc). Values were calculated using the iNEXT package for the analysis
+and the same eBird data used in the population-level analysis.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(broom)
+library(dggridR)
+library(ggpubr)
+library(ggridges)
+library(here)
+library(sf)
+library(tidyverse)
+library(viridis)
+```
+
+## Import data
+
+Import the iNext data for the community analysis. It is based on the
+eBird occurrence information for all 15 seed dispersing species. Winter
+season was defined as November through February. We used years
+2008-2023.
+
+```{r}
+# diversity estimates for winter seasons, by POLYFID hexagonal cell; loads 3 dataframes
+load(here("data/1-raw_eBird_data/community/iNEXT-results.RData"))
+
+# coordinates for the icosahedron cells
+load(here("data/1-raw_eBird_data/locs.RData")) 
+```
+
+Import the shapefile for the eastern redcedar range extent boundaries.
+This code file imports a shapefile representing an updated range
+boundary for the eastern redcedar tree, Juniperus virginia. The
+shapefile was created by W. Haas, 2023 (Kent State University).
+
+```{r}
+ERC_range_sf <- st_read(here("data/shapefiles/ERC_shapefile_2023/junivirg.shp"), quiet = TRUE) %>%
+  st_transform(crs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+```
+
+## Process the data
+
+merge the diversity files with the location file so that polygon
+locations can be mapped
+
+```{r}
+# use merge to annotate SURVEY COMPLETENESS with the polygon coordinates (lat, long)
+sc <- merge(sc, locs)
+```
+
+Import map polygons for plotting
+
+```{r}
+#Get polygons for the spatial range and make a map
+north_america <- map_data("world") %>%
+  filter(region %in% c("USA", "Canada", "Mexico", "Guatemala", "Belize", 
+                       "El Salvador", "Honduras", "Nicaragua", "Costa Rica", 
+                       "Panama"))
+```
+
+Take the sc dataframe and use dggridr package to prepare grid cell data
+for mapping hexagons and their values. This code also adds columns that
+label the rows as "include" or "exclude", based on the survey
+completeness threshold \>= 90%; and a column that contains the SC values
+when \>=90% but fills in NA for all values below the threshold. This is
+to make a map that clearly shows which values will be used, and which
+ones will be filtered out.
+
+```{r}
+#Prepare the grid cell data for mapping
+
+# use the suvery completeness dataframe; and cell centers calculated
+dgg <- dgconstruct(project = "FULLER", aperture = 4, topology = "HEXAGON", res = 6)
+sc$cell <- dgGEO_to_SEQNUM(dgg, sc$x, sc$y)$seqnum
+sc$cell_lat <- dgSEQNUM_to_GEO(dgg, sc$cell)$lat_deg 
+sc$cell_lon <- dgSEQNUM_to_GEO(dgg, sc$cell)$lon_deg 
+
+# Get the grid cell boundaries 
+grid <- dggridR::dgcellstogrid(dgg, sc$cell) 
+
+#Update the grid cells' properties to include sc values
+grid <- merge(grid, sc, by.x="seqnum", by.y="cell")
+
+# #Make adjustments so the output is more visually interesting
+grid <- grid %>% mutate(threshold=ifelse(SC<0.90, "exclude", "include"))
+grid <- grid %>% mutate(thres_vals=ifelse(SC<0.90, NA, round(SC, 2)))
+```
+
+Identify which cells fall within and outside of the eastern redcedar
+range extent (ERC_range_sf).
+
+-   Convert the survey completeness (sc) dataframe into an sf object.
+-   Geometry for sc_sf represents the center point of the icosahedron
+    cell within which the observation took place.
+-   Geometry for ERC_range_sf represents the range boundaries for
+    eastern red cedar tree
+
+```{r}
+#convert sc grid data into an sf object 
+sc_sf <- st_as_sf(grid, 
+                     coords = c("cell_lon", "cell_lat"), 
+                     crs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+
+# apply st_intersects to sc data
+sc_sf_ERC = lengths(st_intersects(sc_sf, ERC_range_sf)) > 0
+
+# use sc_sf_ERC to filter the sc data to only include observations WITHIN ERC RANGE extent
+sc_ERC_in = sc_sf %>%
+  filter(geometry %in% geometry[sc_sf_ERC]) %>%
+  mutate(ERC="within_range")
+
+#use sc_sf_ERC to filter the sc data that falls OUTSIDE ERC RANGE extent
+sc_ERC_out = sc_sf %>%
+  filter(! geometry %in% geometry[sc_sf_ERC]) %>%
+  mutate(ERC="outside_range")
+
+sc_ERC <- rbind(sc_ERC_in, sc_ERC_out)
+```
+
+merge the sc_ERC dataframe with the S and est dataframes. This will add
+the grid annotations and the ERC range labels to both of the other
+dataframes.
+
+```{r}
+# merge in the order shown, because then the resulting dataframe will inherit the status of being an sf object. If merged in the opposite order, the resulting dataframe will no longer be an sf object.
+S_ERC <- merge(sc_ERC, S)
+
+est_ERC <- merge(sc_ERC, est)
+```
+
+#--------------------------------------------------
+
+# Analyze and visualize the data
+
+## Survey Completeness
+
+Survey completeness of the bird occurrence information was estimated
+using the Hill numbers approach (Chao et al., 2014). We implement this
+analysis for each winter season using the iNEXT R package (Hsieh et al.,
+2024). We only included checklists in the survey completeness analysis
+where all the species detected by sight or sound were recorded by the
+observer (i.e. the ‘all observations reported’ field in eBird was
+designated as ‘yes’) (La Sorte et al., 2024). For our community
+analysis, we only examined spatial bins that were well surveyed in each
+season, with a survey completeness threshold \>=90% (La Sorte et al.,
+2024).
+
+Look at the survey completeness data, by year. Here, we use the
+dataframe that represents the cells falling within the ERC range
+
+```{r}
+ggplot(data=sc_ERC %>% filter(ERC=="within_range"), 
+       aes(x=SC, y=as.factor(year), group=year, fill=stat(x))) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis(name = "survey completeness", option = "D") +
+  labs(y = "Winter Season Year",
+       x = "Survey Completeness") +
+  geom_vline(aes(xintercept=0.90)) +
+  theme_ridges() +
+    theme(
+      legend.position="none",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8))
+```
+
+There is no major pattern in survey completeness across time, but maybe
+a slight increase in completeness in more recent years. Within the ERC
+range, most cells are very well sampled.
+
+Check the relationship of observed species richness with survey
+completeness. Here, we use the dataframe that represents the cells
+falling within the ERC range.
+
+```{r}
+ggplot(sc_ERC %>% filter(ERC == "within_range"), aes(S.obs, SC)) +
+  geom_point(alpha=0.10) + 
+  xlab("Observed species richness") +
+  ylab("Survey Completeness") +
+  theme_bw()
+```
+
+As species richness increases, it is more likely that high sample
+completeness will be estimated. There are still a good number of low
+species richness sites that also reach high survey completeness.
+
+Let's plot survey completeness on a map to show the estimates
+transparently. Note: Here we use the previously created "grid" dataframe
+version of "sc" for the polygons and the fill values. We overlay a
+polygon showing the ERC range extent on top of the hexagons.
+
+```{r}
+# Winter survey completeness per grid cell (Nov-Feb)
+ggplot() + 
+  geom_sf(data = grid, aes(fill = thres_vals), color = alpha("white", 0.4 )) +
+  geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black", linewidth=0.10) +
+  geom_sf(data = ERC_range_sf, fill = NA, color ="black", linewidth=0.50) +
+  #scale_fill_gradient(low="grey90", high="black", na.value="white") +
+  scale_fill_gradient(low="yellow", high="red") +
+  coord_sf(xlim = c(-103, -60), ylim = c(20, 55)) + #set limits without distorting boundaries
+  labs(title = "Winter survey completeness per grid cell (Nov-Feb)") +
+  theme_minimal() + 
+  theme(axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position="bottom") +
+  facet_wrap(~year, ncol=4)
+
+ggsave(filename = here("figs/sample-coverage_map_08-23.png"), height = 11, width=8, bg="white")
+```
+
+## Seed disperser species diversity over time
+
+The S dataframe counts the number of target species (0-15) that were
+observed in each cell during a winter season (November-February). S_ERC
+has already been merged with the gridded data (for dggridr) and labled
+as within or outside of the ERC range.
+
+### For composition/diversity analysis, use the survey completeness threshold \>=0.90 (90%) AND filter to cells within the ERC range extent.
+
+Filter the S and est dataframes. Cells \<0.90 we cannot assume to be
+well sampled.
+
+```{r}
+# filter observations to only include those with >=90% survey completeness and within ERC Range
+S_ERC_90sc <- S_ERC %>%
+  filter(SC >= 0.90 & ERC=="within_range") %>%
+  arrange(POLYFID, year)
+
+est_ERC_90sc <- est_ERC %>%
+  filter(SC >= 0.90 & ERC=="within_range") %>%
+  arrange(POLYFID, year)
+
+```
+
+
+# Species richness
+
+**Questions:**
+
+-   Spatial: Are there areas with increased richness of ERC seed
+    dispersers?
+    -   A hypothesis is that there should be higher richness of ERC seed
+        dispersers in the southeastern united states, and in east coast
+        urban areas (heat island, feeder effects, etc.)
+-   Temporal: Is seed disperser richness stable through time, or is
+    there evidence of overall increase?
+    -   A hypothesis could be that changing climate is increasing seed
+        disperser richness during the winter because of advanced
+        migration and/or increased number of individuals or
+        subpopulations that are not migrating southward, out of the ERC
+        range
+    -   A spatial component could include a shift in areas that are
+        experiencing this trend, and other areas that are not.
+
+```{r}
+ggplot(data=S_ERC_90sc, aes(x=S, y=as.factor(year), group=year, fill=stat(x))) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis(name = "species richness", option = "C") +
+  labs(y = "Winter Season Year",
+       x = "Species Richness") +
+  theme_bw() +
+    theme(
+      legend.position="none",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8))
+```
+
+Show species richness on a map, separated by year
+
+```{r}
+# Winter species richness per grid cell (Nov-Feb)
+ggplot() + 
+  geom_sf(data = S_ERC_90sc, aes(fill=S), color = alpha("white", 0.4 )) +
+  geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black", linewidth=0.10) +
+  geom_sf(data = ERC_range_sf, fill = NA, color ="black", linewidth=0.25) +  
+  scale_fill_viridis_c(option = "plasma") +
+  coord_sf(xlim = c(-106, -70), ylim = c(29, 49)) + #set limits without distorting boundaries
+  labs(title = "Winter species richness per grid cell (Nov-Feb)") +
+  theme_minimal() + 
+  theme(axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position="bottom") +
+  facet_wrap(~year, ncol=4)
+
+ggsave(filename = here("figs/S_map_08-23.png"), height = 8, width=8, bg="white")
+
+```
+
+### Is there a significant trend for changing species richness across cells, through time?
+
+Calculate the slopes of change across years, within cells. Plot the
+results to see if there is a trend of higher species disperser load
+through time. Need to think and check with FAL for ideas to see if we
+need to account for overall effort better (currently using as pres-only
+data, without weighted checks)
+
+**Note:** If fewer than half the years are present, then the linear model for that cell will be skipped.
+#FIXME: Decide if we want to keep or relax this requirement.
+```{r}
+# calculate separate lm for all grid cells
+cells <- unique(S_ERC_90sc$POLYFID)
+
+lm_S_results <- data.frame(POLYFID=numeric(), n=integer(), slope=numeric(), 
+                           lci=numeric(), uci=numeric(), pVal=numeric())
+
+for (c in cells) {
+  dat <- S_ERC_90sc %>% filter(POLYFID == c)
+  #must have at least half of the years (n=8) to run a linear model
+  if (nrow(dat) >= 8) {
+      mod <- lm(S~as.numeric(year), data=dat)
+      n = nrow(dat)
+      slope = coef(mod)[[2]]
+      lci = confint(mod)[2,1]
+      uci = confint(mod)[2,2]
+      pVal = glance(mod)$p.value[[1]]
+      
+      newrow <- data.frame(POLYFID=c, n, slope, lci, uci, pVal)
+      lm_S_results <- rbind(lm_S_results, newrow)
+  }
+}
+
+#remove the NA values
+lm_S_results <- na.omit(lm_S_results)
+  
+# add column for significance
+lm_S_results$sig <- ifelse(lm_S_results$pVal <= 0.05, "sig", "NS")
+
+# add the cell locations back into the dataset
+unique_cell_dat <- S_ERC_90sc %>%
+  select(POLYFID, seqnum, cell_lon, cell_lat, geometry) %>%
+  distinct()
+
+#merge results with cell data
+lm_S_results <- merge(lm_S_results, unique_cell_dat)
+
+#transform back into sf object
+lm_S_results <- st_as_sf(lm_S_results, crs = 4326)
+```
+
+Plot the results from the S linear regression
+
+```{r}
+#ggplot histogram, layered by identity for sig and NS
+ggplot(lm_S_results, aes(slope)) + 
+  geom_density(aes(fill=sig), alpha=0.50) +
+ # geom_histogram(aes(fill=sig), binwidth=0.05, position="identity", alpha=0.5) +
+  scale_fill_manual(values = c("gray40", "navyblue")) + 
+  geom_vline(xintercept=0, linetype="dashed", col="gray10") +
+  xlab("slope estimate") + 
+  theme_bw()
+
+ggsave(filename = here("figs/S_slope_density-plot.png"), height = 3, width=4, bg="white")
+```
+
+Most of the significant slopes were positive (increasing richness). Very
+few significant negative slopes (decreasing richness).
+
+```{r}
+#average effect size, mean of the slopes
+avg_effect_size <- lm_S_results %>% 
+  filter(sig=="sig") %>%
+  summarize(meanslope = mean(slope),
+            medianslope = median(slope))
+
+avg_effect_size
+```
+
+See if there is a signal by longitude (would indicate a E-W influence or trend)
+```{r}
+ggscatter(data=lm_S_results, x="cell_lon", y="slope", add="reg.line", alpha=0.25, col="sig") +
+  stat_cor(label.y = 0.8, aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  stat_regline_equation(label.y = 0.7) + 
+  geom_hline(yintercept = 0, linetype="dashed") +
+  scale_colour_manual(values = c("gray40", "navyblue")) + 
+  theme(text = element_text(size=9), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  #scale_x_continuous(breaks=seq(2008, 2024, 6)) +
+  xlab("Cell Longitude") + ylab("S regression slope") + 
+  theme_bw()
+
+ggsave(filename = here("figs/S_slope_scatter-longitude.png"), height = 3, width=4, bg="white")
+
+```
+
+See if there is a signal by latitude (would indicate a N-S influence or trend)
+
+```{r}
+ggscatter(data=lm_S_results, x="cell_lat", y="slope", add="reg.line", alpha=0.25, col="sig") +
+  stat_cor(label.y = 0.8, aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  stat_regline_equation(label.y = 0.7) + 
+  geom_hline(yintercept = 0, linetype="dashed") +
+  scale_colour_manual(values = c("gray40", "navyblue")) + 
+  theme(text = element_text(size=9), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  #scale_x_continuous(breaks=seq(2008, 2024, 6)) +
+  xlab("Cell Latitude") + ylab("S regression slope") + 
+  theme_bw()
+
+ggsave(filename = here("figs/S_slope_scatter-latitude.png"), height = 3, width=4, bg="white")
+
+```
+
+Plot the slope estimates against S in year 1 (2008). 
+```{r}
+initial_S <- S_ERC_90sc %>%
+  filter(year == 2008) %>%
+  select(POLYFID, S)
+
+Sxslope <- st_join(lm_S_results, initial_S)
+
+ggplot(Sxslope, aes(S, slope)) + 
+  geom_jitter(aes(col=sig), alpha=0.20) +
+  scale_colour_manual(values = c("gray40", "navyblue")) + 
+  theme_bw() +
+  xlab("initial richness (S) in 2008")
+
+ggsave(filename = here("figs/slope_initial_S.png"), height = 3, width=4, bg="white")
+```
+
+
+Let's plot the map using the significant slopes, and all others shaded
+in grey
+```{r}
+# make subsets based on significant vs non-significant slope pvalues
+gridsig <- lm_S_results %>% filter(sig == "sig")
+gridNS <- lm_S_results %>% filter(sig == "NS")
+
+
+# Winter species richness change (slope), per grid cell (Nov-Feb)
+ggplot() + 
+  geom_sf(data = gridsig, aes(fill = slope), color = alpha("white", 0.4 )) +
+  geom_sf(data = gridNS, fill="grey", color = alpha("white", 0.04)) + 
+  geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black", linewidth=0.10) +
+  geom_sf(data = ERC_range_sf, fill = NA, color ="black", linewidth=0.50) +
+  scale_fill_gradient2(low="firebrick3", high="navyblue", midpoint = 0) +
+  coord_sf(xlim = c(-106, -70), ylim = c(29, 49)) + #set limits without distorting boundaries
+  labs(title = "Winter species richness slope per grid cell (2008-2023)") +
+  theme_void() + 
+  theme(axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position="bottom")
+
+ggsave(filename = here("figs/S_slope_map.png"), height = 4, width=6, bg="white")
+
+```
+Target species richness is increasing just about everywhere where significant trends are found. Many are non-significant, but only a very few significant trends are negative (n=1).
+
+
+#FIXME: Next step: what do do with the estimate dataset

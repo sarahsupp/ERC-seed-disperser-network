@@ -1,0 +1,265 @@
+---
+title: "daily-nvector-centroids"
+author: "Sarah Supp"
+date: "2024-11-11"
+output: html_document
+---
+##Code for cedar waxwing project, modified from eBird migration project (Supp et al. 2015)
+(c) 2020-2024, Wisnefski, and Supp (PI)
+based on code shared from La Sorte previous eBird project
+supps@denison.edu
+Denison University
+Code is under development, part of NSF Multi-Institution Collaborative Award (2019-2025)
+
+Birds evaluated include: 
+* Cedar Waxwing (CEWA) _Bombycilla cedrorum_
+* Robin (ROBI) _Turdus migratorius_
+* Wood Thrush (WOTH) _Hylocichla mustelina_
+* Yellow-rumped Warbler (YEWA) _setophaga coronata_
+* Blue Jay (BLJA) _Cyanocitta cristata_
+* European Starling (EUST) _Sturnus vulgaris_
+* Eastern Bluebird (EABL) _Sialia sialis_
+* Northern Mockingbird (NOMO) _Mimus polyglottos_
+* Downy Woodpecker (DOWO) _Dryobates pubescens_
+* Eastern Meadowlark (EAME) _Sturnella magna_
+* White-breasted Nuthatch (WHNU) _Sitta carolinensis_
+* Purple Finch (PUFI) _Haemorhous purpureus_
+* Northern Cardinal (NOCA) _Cardinalis cardinalis_
+* Dark-eyed Junco (DAJU) _Junco hyemalis_
+* American Crow (AMCR) _Corvus brachyrhynchos_
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(nvctr)
+library(tidyverse)
+
+```
+
+To run this code, you should already have species files that are annotated with total eBird effort and the latitude and longitude coordinates for the polygon centers. Intermediate files should contain fields for: POLYFID, year, day, count, effort, x, y, species
+
+*Please go to the file* called "process-raw-eBird-data.Rmd" to do this, if you don't already have the files named with the pattern dat_effort_****.RData".
+
+**If you have already completed the initial steps** start here instead, with loading the species files located in the intermediate data folder. 
+
+Each species has it's own merged data file, and they will all be brought together here into a single file called "spdata" to work through the results.
+
+```{r}
+# list prepared .rds files for each of the species
+files = list.files(path=here("data/2-intermediate_eBird_data/species_effort/"), pattern=glob2rx("dat_effort*.rds"))
+
+# initialize empty dataframe
+spdata <- data.frame(POLYFID=integer(), year=integer(), day=integer(),
+                     count=integer(), x=numeric(), y=numeric(),
+                     effort=numeric(), species=character())
+
+# loop through each file to create one merged dataframe with all species
+for (i in files) {
+  dat <- readRDS(paste0(here("data/2-intermediate_eBird_data/species_effort/"),(i)))
+  spdata <- bind_rows(spdata, dat)
+}
+```
+
+
+## Filter data to only include checklists from the eastern and central flyways (-103 Longitude)
+[La Sorte et al. 2014](https://onlinelibrary.wiley.com/doi/full/10.1111/jbi.12328) defined western, central, and eastern flyways for migrating songbirds. These are general, but since our species include populations across the continent, and we are focused on eastern and midwestern populations of eastern redcedar, we should exclude western occurrences (<-103 longitude).
+
+Save merged and filtered file for later use.
+```{r}
+#set filter to only include occurrences within eastern and central flyway (-103 Longitude)
+# x = longitude , y = latitude
+dat_effort <- spdata %>%
+  dplyr::filter(x >= -103) 
+
+# write a copy of the species-merged data, filtered by flyway, before the next steps
+saveRDS(dat_effort, file=here("data/2-intermediate_eBird_data/dat_effort_filtered.rds"))
+```
+
+## summarize the merged species data
+Summarize the merged and filtered file for reporting. 
+Save a figure showing the increase in the number of checklists over time.
+```{r}
+# count the number of rows. This represents the number of polygons on a specific date with a target species present.
+num_obs <- nrow(dat_effort)
+paste0("The total number of observations (nrow) for all species is ", num_obs, ".")
+
+#print total number of observations (rows) and checklists by species
+num_spobs <- dat_effort %>%
+  group_by(species) %>%
+  summarise(nrow=n(),
+            total_checklists=sum(count))
+num_spobs
+
+dat_effort %>%
+  group_by(species, year) %>%
+  summarise(nrow=n(),
+            total=sum(count)) %>%
+  ggplot(aes(as.numeric(year), total, group=species)) + 
+  geom_point() + 
+  geom_line() + 
+  scale_y_log10() + 
+  scale_x_continuous(breaks=seq(2008, 2024, 4)) +
+  xlab("Year") +
+  ylab("checklist count") +
+  theme(legend.position=("none")) +
+  facet_wrap(~species, ncol=3) + 
+  theme_bw()
+    # # set transparency
+    # theme(
+    #     panel.grid.major = element_blank(), 
+    #     panel.grid.minor = element_blank(),
+    #     #panel.background = element_rect(fill = "transparent",colour = NA),
+    #     #plot.background = element_rect(fill = "transparent",colour = NA)
+    #     ) 
+
+# Figure for ESA 2021 poster was saved with transparency
+# Figure for manuscript was made with white background
+
+ggsave(here("figs/checklist_counts.png"), height=10, width=8) #if want the background to be transparent, use: bg="transparent"
+```
+
+# Weight mean locations 
+Weight species counts by eBirder effort counts for each cell
+
+## Use the nvector method to convert the latitude and longitude values to 3 vectors 
+These vectors represent longitude (x), latitude (y), and radius from the center of ellipsoidal earth (z) 
+
+**WARNING:** the function lat_lon2n_E takes a long time to run if you repeat on all rows. Only calculate once per unique value. Code has been vectorized and optimized to resolve this challenge, and it should only take a few minutes.
+
+```{r}
+#sort dat_effort by year and day, adding column for frequency (count_checklists/total_effort)
+dat_effort <- dat_effort %>%
+  arrange(year, day) %>%
+  mutate(freq = count / effort)
+
+# make a new dataframe containing only the unique x and y values
+# this will reduce redundant and lengthy calculations and save computing time 
+# x and y represents the center coordinates of the icosahedron cells, so there are many repeated combinations
+unique_cell_coords <- dat_effort %>%
+  distinct(x, y)
+
+# Convert x and y coordinates into x, y, and z vectors: Nvector method
+unique_cell_coords <- unique_cell_coords %>%
+  mutate(
+    rad_y = rad(y),
+    rad_x = rad(x),
+    new_vals = pmap(list(rad_y, rad_x), lat_lon2n_E),
+    newx = map_dbl(new_vals, 1),
+    newy = map_dbl(new_vals, 2),
+    newz = map_dbl(new_vals, 3)
+  ) %>%
+  dplyr::select(-new_vals, -rad_y, -rad_x)  # Clean up temporary columns
+
+# Join the new coordinates back to the dat_effort dataframe, based on the x and y values
+dat_effort <- dat_effort %>%
+  left_join(unique_cell_coords, by = c("x", "y"))
+
+# #Save to RDS file
+saveRDS(dat_effort, here("data/2-intermediate_eBird_data/df_nvector.rds"))
+```
+
+## calculate daily weighted mean [centroid]
+Using the nvector dataset, estimate the location centroid for each species on a given day (as a weighted mean)
+*as a note, this code chunk also takes several minutes to run. (~6 minutes on linux desktop)
+
+```{r}
+#Make a vector for unique species and years, in order
+species <- unique(dat_effort$species)
+years <- sort(unique(dat_effort$year))
+
+#For each species on a given year and day
+#    convert newx, newy, newz into decimal degree mean x (longitude) and mean y (latitude)
+weighted_mean_locs <- NULL
+
+for (i in 1:length(species)){
+  species_df <- dat_effort[dat_effort$species==species[i],]
+  
+  for (j in 1:length(years)){
+    year_df <- species_df[species_df$year==years[j],]
+    days <- sort(unique(year_df$day)) #for each species and year, may have a unique set of days
+
+    for(k in 1:length(days)){
+        day_df <- year_df[year_df$day==days[k],]
+        mean_cal <- c(weighted.mean(day_df$newx, day_df$freq),
+                      weighted.mean(day_df$newy, day_df$freq),
+                      weighted.mean(day_df$newz, day_df$freq))
+        mean_cal <- deg(n_E2lat_lon(mean_cal)) #degree func
+        # count total number of checklists and total number of cells
+        numcells = nrow(day_df) # each row represents a unique icosahedron cell
+        numobs = sum(day_df$count) #sum of the counts represents to the total number of checklists
+        weighted_mean_locs <- rbind(weighted_mean_locs, 
+                                    data.frame(species=species[i], 
+                                    year=years[j], 
+                                    day=days[k],
+                                    numcells=numcells,
+                                    numobs=numobs,
+                                    weighted_lon=mean_cal[2], 
+                                    weighted_lat=mean_cal[1]))
+    }
+  }
+}  
+
+```
+
+
+## Add Labels for winter (October-March)
+A DATE and MONTH formatted column to mean_daily_locs dataframe.
+An ID column is also added, which is an integer of each of the rows in order of species and date, 1:93073.
+**It is important to note when converting to Dates that for this data type only (why!?!) R uses a 0 based index. This means Day 1 is 0. So to convert our "day of year" integers to a Year-Month-Day format, we need to use DAY-1 and YEAR.**
+
+Note that this code defines the "winter" season as October-March. This is to label the time of year important for eastern redcedar cone production.
+```{r}
+weighted_mean_locs <- weighted_mean_locs %>%
+  mutate(DAYm1 = day-1,
+         origin = paste0(year, "-01-01"),
+         date = as.Date(DAYm1, origin=origin), 
+         month = month(date)) %>%
+  mutate(winter = ifelse(month %in% c(10, 11, 12, 1, 2, 3), "winter", "non-winter")) %>%
+  arrange(species,date) %>%
+  ungroup() %>%
+  mutate(ID = row_number()) %>%
+  dplyr::select(-DAYm1, -origin)
+
+saveRDS(weighted_mean_locs, here("data/2-intermediate_eBird_data/weighted_mean_locs.rds"))
+```
+
+
+## Make figures to summarize results so far
+Plot the new weighted mean locations to visualize them, separately by species
+```{r}
+#plot the weighted lons and lats by species, just to check
+ggplot(weighted_mean_locs, aes(weighted_lon)) + 
+  geom_histogram() + 
+  facet_wrap(~species) + 
+  theme_bw()
+
+ggplot(weighted_mean_locs, aes(weighted_lat)) + 
+  geom_histogram() + 
+  facet_wrap(~species) + 
+  theme_bw()
+
+#check if weighted sd differs by time of the year (expect to be higher during migration, lower during breeding)
+# LONGITUDE
+ggplot(weighted_mean_locs, aes(day, weighted_lon)) + 
+  geom_point(alpha=0.10) + facet_wrap(~species, ncol=3) + 
+  ylab("weighted mean longitude (2008-2024)") +
+  xlab("day of year") +
+  theme_bw()
+
+ggsave(filename = here("figs/15spp_wtmean_lon.png"), height = 10, width=8)
+
+#LATITUDE
+ggplot(weighted_mean_locs, aes(day, weighted_lat)) + 
+  geom_point(alpha=0.10) + 
+  facet_wrap(~species, ncol=3) + 
+  ylab("weighted mean latitude (2008-2024)") +
+  xlab("day of year") +
+  theme_bw()
+
+ggsave(filename = here("figs/15spp_wtmean_lat.png"), height = 10, width=8)
+
+```
+
+After this code is completed, run *migration-paths.Rmd* for the next step of the analysis.
