@@ -31,8 +31,7 @@ Birds evaluated include:
 * Dark-eyed Junco (DAJU) _Junco hyemalis_
 * American Crow (AMCR) _Corvus brachyrhynchos_
 
-
-##FIXME: check which of these libraries is  used, and remove ones that are not needed
+## Import Libraries
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -78,43 +77,51 @@ weighted_mean_locs <- readRDS(here("data/2-intermediate_eBird_data/weighted_mean
 # Data summaries for manuscript and annual reporting
 Count number of records by year *for NSF report*
 ```{r}
-#count total number of records across the years. (increasing strongly)
+#count total number of records across the years. (increasing strongly), and 
+# checks how many unique grid cells logged an observation in each year (relatively flat) and number of days per year have at least one observation
 counts <- df %>%
   group_by(species, year) %>%
-  tally()
+  summarize(numrows = n(),
+            numchecklist = sum(count),
+            ncell=n_distinct(POLYFID),
+            nday=n_distinct(day))
 
-num_bins <- ggplot(counts, aes(year, n)) + geom_bar(stat="identity") + 
-  theme_bw() + ylab("Number of binned observations") + xlab("Year") +
+num_cklists <- ggplot(counts, aes(year, numchecklist)) + 
+  #geom_bar(stat="identity") + 
+  geom_point() +
+  geom_line() +
+  theme_bw() + ylab("Number of checklists") + xlab("Year") +
   theme(axis.text.x = element_text(angle = 90)) + 
   facet_wrap(~species, ncol=1)
 
-#checking how many unique grid cells logged an observation in each year (relatively flat)
-nPOLYFID <- df %>%
-  group_by(species, year) %>%
-  summarise(n=n_distinct(POLYFID))
-
-num_gridcells <- ggplot(nPOLYFID, aes(year, n)) + geom_bar(stat="identity") + 
+num_gridcells <- ggplot(counts, aes(year, ncell)) + 
+  #geom_bar(stat="identity") + 
+  geom_point() + 
+  geom_line() +
   theme_bw() + ylab("Number of unique grid cells") + xlab("Year") +
   theme(axis.text.x = element_text(angle = 90)) + 
   facet_wrap(~species, ncol=1)
 
-#checking how many days per year have at least 1 observation (ALL of them)
-nDAYSofyear <- df %>%
-  group_by(species, year) %>%
-  summarise(n=n_distinct(day))
-
-num_days <- ggplot(nDAYSofyear, aes(year, n)) + geom_bar(stat="identity") + 
+num_days <- ggplot(counts, aes(year, nday)) + 
+  #geom_bar(stat="identity") + 
+  geom_point() + 
+  geom_line() +
   theme_bw() + ylab("Number of unique days per year") + xlab("Year") +
   theme(axis.text.x = element_text(angle = 90)) + 
   facet_wrap(~species, ncol=1)
 
-ggarrange(num_bins, num_gridcells, num_days,
+ggarrange(num_cklists, num_gridcells, num_days,
           labels=c("A", "B", "C"),
           ncol=3, nrow=1)
 
 ggsave(filename = here("figs/15spp_counts.png"), height = 11, width=8)
-```
 
+ggplot(nPOLYFID_days, aes(x = nday, y = ncell, group=year)) +  # Color points based on z
+  geom_point() +                         # Draw points
+  geom_line(aes(group=year, col=species)) +
+  theme_bw()
+  
+```  
 
 Initial plot of bird average locations for all species and latitude by day across years *for NSF report*
 ```{r}
