@@ -610,23 +610,23 @@ Visualize the estimated dates for the 6 migratory species
 end_winter = 90 #March 31
 begin_winter = 274 #October 1
 
-spring <- ggscatter(data=migration_dates, x="year", y="spring", facet.by="species", add="reg.line") +
+spring <- ggscatter(data=migration_dates, x="year", y="spring", facet.by="species", add="reg.line", add.params = list(color = "skyblue2", size = 1.2, linetype = "solid")) +
   stat_cor(label.y = 10, aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
   stat_regline_equation(label.y = -10) + 
-  geom_hline(yintercept = end_winter, linetype="dashed", col="cadetblue3") +
+#  geom_hline(yintercept = end_winter, linetype="dashed", col="cadetblue3") +
   theme(text = element_text(size=9), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
   scale_x_continuous(breaks=seq(2008, 2024, 6)) +
-  xlab("Year") + ylab("spring migration begin date") +
+  xlab("Year") + ylab("spring onset date") +
   theme_bw()
 
-autumn <- ggscatter(data=migration_dates, x="year", y="fall", facet.by="species", add="reg.line") +
+autumn <- ggscatter(data=migration_dates, x="year", y="fall", facet.by="species", add="reg.line", add.params = list(color = "darkorange3", size = 1.2, linetype = "solid")) +
   stat_cor(label.y = 300, aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
   stat_regline_equation(label.y = 285) + 
-  geom_hline(yintercept = begin_winter, linetype="dashed", col="cadetblue3") +
+#  geom_hline(yintercept = begin_winter, linetype="dashed", col="cadetblue3") +
   theme(text = element_text(size=9), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
   scale_x_continuous(breaks=seq(2008, 2024, 6)) +
-  xlab("Year") + ylab("autumn migration end date") + 
-  theme_bw()# 
+  xlab("Year") + ylab("autumn end date") + 
+  theme_bw() 
 
 ggarrange(spring, autumn,
           ncol=1, nrow=2)
@@ -681,16 +681,17 @@ Plot results from the GAM model with the estimated dates
 Save to file
 ```{r}
 ggplot(mig_spp_dailylocs, aes(x=day, y=lat, group=year)) + 
-  geom_point(aes(col=as.factor(year)), size=0.10) + 
-  scale_color_viridis(discrete=TRUE, option="magma") + 
+  geom_point(col="black", size=0.10) + 
+  #geom_point(aes(col=as.factor(year)), size=0.10) + 
+  #scale_color_viridis(discrete=TRUE, option="magma") + 
   geom_vline(data=migration_dates, aes(xintercept=spring), col="skyblue") + 
   geom_vline(data=migration_dates, aes(xintercept=fall), col="darkorange3") +
-#  geom_vline(data=migration_dates, aes(xintercept=maxlat, col="grey50")) +
+  geom_vline(xintercept=c(90,274), col="mediumpurple4", linewidth=1.5) +
   facet_wrap(~species, scales="free") +
   xlab("day of year") + ylab("centroid latitude") + 
   labs(col = "Year") +
   theme_bw()
 
-ggsave(filename = here("figs/9spp_lat_with_dates.png"), height = 6, width=8)
+ggsave(filename = here("figs/6spp_lat_with_dates.png"), height = 5, width=8)
 ```
 
