@@ -51,7 +51,7 @@ ggplot() +
           axis.title.x=element_blank(),
           axis.title.y=element_blank())
 
-ggsave(filename = here("figs/ERC_range_map.png"), height = 4, width=5.5)
+ggsave(filename = here("figs/map_ERC_range.png"), height = 4, width=5.5)
 ```
 
 
@@ -256,4 +256,7 @@ ggplot() +
 
 ggsave(filename = here("figs/map_opportunistic-feeder.png"), height = 12, width=8, bg="white")
 ```
+
+
+
 
