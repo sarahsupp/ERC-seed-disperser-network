@@ -116,11 +116,12 @@ ggarrange(num_cklists, num_gridcells, num_days,
 
 ggsave(filename = here("figs/15spp_counts.png"), height = 11, width=8)
 
-ggplot(nPOLYFID_days, aes(x = nday, y = ncell, group=year)) +  # Color points based on z
+
+# as the number of checklists increases, the bird is observed in more cells
+ggplot(counts, aes(x = numchecklist, y = ncell)) +  # Color points based on z
   geom_point() +                         # Draw points
-  geom_line(aes(group=year, col=species)) +
+  stat_smooth(method=lm, aes(col=species)) +
   theme_bw()
-  
 ```  
 
 Initial plot of bird average locations for all species and latitude by day across years *for NSF report*
