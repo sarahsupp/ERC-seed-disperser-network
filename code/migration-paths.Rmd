@@ -78,7 +78,7 @@ weighted_mean_locs <- readRDS(here("data/2-intermediate_eBird_data/weighted_mean
 Count number of records by year *for NSF report*
 ```{r}
 #count total number of records across the years. (increasing strongly), and 
-# checks how many unique grid cells logged an observation in each year (relatively flat) and number of days per year have at least one observation
+# checks how many unique grid cells logged an observation in each year (relatively flat) and number of days per year have at least one observation (relatively flat)
 counts <- df %>%
   group_by(species, year) %>%
   summarize(numrows = n(),
@@ -211,7 +211,7 @@ ggplot() +
           axis.title.y=element_blank()) +
   facet_wrap(~species, ncol=5)
 
-ggsave(filename = "figs/15spp_sum_checklist_grids.png", height = 11, width=8)
+ggsave(filename = here("figs/15spp_sum_checklist_grids.png"), height = 11, width=8)
 
 ```
 
