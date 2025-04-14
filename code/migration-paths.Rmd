@@ -204,7 +204,7 @@ ggplot() +
   #scale_fill_gradient(low="red", high="yellow") +
   coord_sf(xlim = c(-103, -60), ylim = c(10, 65)) + #set limits without distorting boundaries
   labs(title = "Number of checklists submitted by grid cell, 2008-2024") +
-  theme_minimal() + 
+  theme_void() + 
   theme(axis.line=element_blank(),axis.text.x=element_blank(),
           axis.text.y=element_blank(),axis.ticks=element_blank(),
           axis.title.x=element_blank(),
@@ -277,13 +277,11 @@ Run the GAM function on the weighted mean dataframe for all species.
 #get daily centroid locations for all species in all years
 dailylocs <- Estimatedailylocs(weighted_mean_locs)
 
-#filter to keep only the migratory species (9 species)
+#filter to keep only the more strongly migratory species (6 species)
 mig_spp_dailylocs <- dailylocs %>% 
   filter (species %in% c("Bombycilla_cedrorum", "Haemorhous_purpureus", 
                          "Hylocichla_mustelina", "Junco_hyemalis", 
-                         "Setophaga_coronata", "Turdus_migratorius", 
-                         "Sialia_sialis", "Sturnella_magna", 
-                         "Sturnus_vulgaris"))
+                         "Setophaga_coronata", "Turdus_migratorius"))
 ```
 
 Plot results from the GAM model
@@ -296,64 +294,52 @@ ggplot(mig_spp_dailylocs, aes(x=day, y=lat, group=year)) +
   labs(col = "Year") +
   theme_bw()
 
-ggsave(filename = here("figs/9spp_GAMlatitude.png"), height = 6, width=8)
+ggsave(filename = here("figs/6spp_GAMlatitude.png"), height = 6, width=8)
 ```
 
 Plot GAM model results showing the lat-lon path on a geographic map by species
 ```{r}
 
-# plot the number of checklists submitted (summed) per grid cell (2008-2024)
+# plot the GAM generated migration path for each species (2008-2024)
+# winter centroids are shaded purple
 ggplot() + 
   geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black")   +
   coord_sf(xlim = c(-103, -60), ylim = c(15, 55)) + #set limits without distorting boundaries
   geom_point(data=mig_spp_dailylocs, aes(lon, lat, col=winter), size=0.1, alpha=0.1) +
-  scale_color_viridis(discrete=TRUE) +
+  #scale_color_viridis(discrete=TRUE) +
+  scale_colour_manual(values = c("grey60", "mediumpurple3")) +
   labs(title = "GAM smoothed migration path, 2008-2024") +
-  theme_minimal() + 
+  theme_void() + 
   theme(axis.line=element_blank(),axis.text.x=element_blank(),
           axis.text.y=element_blank(),axis.ticks=element_blank(),
           axis.title.x=element_blank(),
           axis.title.y=element_blank()) +
-  theme(legend.position="bottom") +
+  theme(legend.position="bottom",
+        legend.title = element_blank()) +
   guides(color = guide_legend(override.aes = list(size = 3, alpha=1) ) ) +
   facet_wrap(~species, ncol=3)
 
-ggsave(filename = here("figs/9spp_GAMmap.png"), height = 6, width=8)
+ggsave(filename = here("figs/6spp_GAMmap.png"), height = 6, width=8)
 ```
 
 Plot the results of the smoothed daily locations (centroids) for the migratory species by day of year
 ```{r}
 ggplot(mig_spp_dailylocs, aes(day, lat, group=year)) + 
   geom_line(linewidth=0.1, aes(col=winter)) +
-  scale_colour_manual(values = c("grey50", "blue")) +
+  scale_colour_manual(values = c("grey60", "mediumpurple3")) +
+  #scale_color_viridis(discrete=TRUE) +
   # Day 91 = April 1; Day 273 = Sep 30
   geom_vline(xintercept=c(91, 273), col="gray30") +
   xlab("Day of Year") + ylab("centroid latitude") +
   facet_wrap( ~species, ncol=3) + 
-  theme_bw()
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title = element_blank()) + 
+  guides(color = guide_legend(override.aes = list(linewidth = 3)))
 
-ggsave(filename = here("figs/9spp_GAMlatitude_winter.png"), height = 8, width=8)
+ggsave(filename = here("figs/6spp_GAMlatitude_winter.png"), height = 5.5, width=8)
 ```
 
-Plot the results of the smoothed daily locations (centroids) for the migratory species on a map
-```{r}
-ggplot(mig_spp_dailylocs, aes(lon, lat, group=year)) +
-  geom_point(aes(col=winter), alpha=0.25, size=0.1) +
-  geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black")   +
-  coord_sf(xlim = c(-103, -60), ylim = c(10, 65)) + #set limits without distorting boundaries
-  scale_colour_manual(values = c("grey50", "blue")) +
-  labs(title = "Daily centroids, 2008-2024") +
-  theme_minimal() + 
-  theme(axis.line=element_blank(),axis.text.x=element_blank(),
-          axis.text.y=element_blank(),axis.ticks=element_blank(),
-          axis.title.x=element_blank(),
-          axis.title.y=element_blank()) +
-  theme(legend.position = "none") +
-  facet_wrap(~species, ncol=3)
-
-ggsave(filename = here("figs/9spp_GAMmap_winter.png"), height = 8, width=6)
-
-```
 
 For relevance to ERC, we have labeled the monthts October-March as "winter" (blue). This is the time of year that ERC is fruiting and where it is most important to be eaten and passed through a bird's gut to enhance germination. For each species, we will also need to determine the lat-long of interest, that corresponds to the necessary time of year and falls within the ERC geographic range extent. 
 
@@ -401,19 +387,20 @@ saveRDS(mig_spp_dailylocs, file = here("data/2-intermediate_eBird_data/mig_spp_d
 
 Plot the results of the distance calculation
 ```{r}
-dist_by_day <- ggplot(mig_spp_dailylocs, aes(as.numeric(day), distance, group=year)) + 
+dist_by_day <- ggplot(mig_spp_dailylocs, 
+                      aes(as.numeric(day), distance_km, group=year)) + 
   geom_line(aes(col=winter), linewidth=0.1) +
-  scale_colour_manual(values = c("grey50", "blue")) +
+  geom_vline(xintercept=c(91, 273), col="gray30") +
+  scale_colour_manual(values = c("grey60", "mediumpurple")) +
   xlab("Julian Day") + ylab("Distance Traveled (km)") + 
   theme(text = element_text(size=12)) + 
   theme_bw() + 
   theme(legend.position = "none") +
   facet_wrap(~species, ncol=3)
-  #geom_vline(xintercept = median(day), col = "indianred", linetype = "dashed")
-  #geom_vline(xintercept = median(migr_dates), col = "indianred", linetype = "dashed")
+
 dist_by_day
 
-ggsave(dist_by_day, filename = here("figs/9spp_centroid_dist_km.png"), height = 5, width=8)
+ggsave(dist_by_day, filename = here("figs/6spp_centroid_dist_km.png"), height = 5.5, width=8)
 ```
 
 ## Estimate the maximum migration speed during migration 
@@ -421,14 +408,26 @@ First, remove all values for Day = 1. Because each GAM was calculated separately
 Use the median of the top 5 migration speeds for each year separately, as the estimated maximum migration speed (km/day) for the species. 
 Report the annual estimates, and an overall summary of the values pooled across years (mean, sd, median, 1st and 3rd quantiles)
 ```{r}
+#divide calendar year into two halves, using June 30/July 1 as the division point 
+# (Julian day 166/167)
+
 # Estimate the maximum migration speed for each year (km/day)
 # To reduce choosing an extreme value, take the top 5 speeds for each species in each year, and report the median value
- max_speed <- mig_spp_dailylocs %>%
-   filter(day != 1) %>%
+spring_max_speed <- mig_spp_dailylocs %>%
+   filter(day != 1 & day < 167) %>%
    group_by(species, year) %>%
-   slice_max(order_by=distance, n = 5, with_ties = FALSE) %>%
-   summarize(max_speed = median(distance)) %>%
+   slice_max(order_by=distance_km, n = 5, with_ties = FALSE) %>%
+   summarize(spr_max_speed = median(distance_km)) %>%
    ungroup()
+
+autumn_max_speed <- mig_spp_dailylocs %>%
+   filter(day >= 167) %>%
+   group_by(species, year) %>%
+   slice_max(order_by=distance_km, n = 5, with_ties = FALSE) %>%
+   summarize(aut_max_speed = median(distance_km)) %>%
+   ungroup()
+
+max_speed <- merge(spring_max_speed, autumn_max_speed)
  
 # save the result as an rds file and as a txt file
 saveRDS(max_speed, here("data/3-results_data/max_speed.rds"))
@@ -442,11 +441,16 @@ Let's further summarize the max speed for each species across years, to check ho
 max_speed_summary <- max_speed %>%
   group_by(species) %>%
   summarise(
-    mean = mean(max_speed),
-    sd = sd(max_speed),
-    median = median(max_speed),
-    Q1 = quantile(max_speed, probs=0.25),
-    Q3 = quantile(max_speed, probs=0.75))
+    spr_mean = mean(spr_max_speed),
+    spr_sd = sd(spr_max_speed),
+    spr_median = median(spr_max_speed),
+    spr_Q1 = quantile(spr_max_speed, probs=0.25),
+    spr_Q3 = quantile(spr_max_speed, probs=0.75),
+    aut_mean = mean(aut_max_speed),
+    aut_sd = sd(aut_max_speed),
+    aut_median = median(aut_max_speed),
+    aut_Q1 = quantile(aut_max_speed, probs=0.25),
+    aut_Q3 = quantile(aut_max_speed, probs=0.75))
 
 # save the result as an rds file and as a txt file
 saveRDS(max_speed_summary, here("data/3-results_data/max_speed_summary.rds"))
@@ -457,9 +461,13 @@ write.table(max_speed_summary, here(file = 'data/3-results_data/max_speed_summar
 Plot the annual maximum migration speeds for the 6 migratory species, with a horizontal line showing the median of all the years for a species pooled together.
 ```{r}
 # plot yearly maximum migration speeds for each species
-max_mig_speed_plot <- ggplot(max_speed, aes(year, max_speed, group=species)) + 
-  geom_hline(data = max_speed_summary, aes(yintercept = median), color = "indianred") +
-  geom_point(data=max_speed) +
+max_mig_speed_plot <- ggplot(max_speed, aes(group=species)) + 
+  geom_point(data=max_speed, aes(year, spr_max_speed), color = "skyblue") + 
+  geom_hline(data = max_speed_summary, 
+             aes(yintercept = spr_median), color = "skyblue") +
+  geom_point(data=max_speed, aes(year, aut_max_speed), color = "darkorange3") + 
+  geom_hline(data = max_speed_summary, 
+             aes(yintercept = aut_median), color = "darkorange3") +
   xlab("Year") + ylab("Max Speed (km/day)") + 
   scale_x_continuous(breaks=seq(2008, 2024, 4)) +
   theme_bw() + 
@@ -469,34 +477,8 @@ max_mig_speed_plot <- ggplot(max_speed, aes(year, max_speed, group=species)) +
   facet_wrap(~species)
 max_mig_speed_plot
 
-ggsave(max_mig_speed_plot, filename = here("figs/9spp_MedMaxMigrationSpeed.png"), height = 5, width=8)
+ggsave(max_mig_speed_plot, filename = here("figs/6spp_MedMaxMigrationSpeed.png"), height = 5.5, width=8)
 ```
-
-#make the same plot as above but focus on the 6 migratory species only
-```{r}
-mig6 <- c("Bombycilla_cedrorum", "Haemorhous_purpureus",
-          "Hylocichla_mustelina", "Junco_hyemalis", 
-          "Setophaga_coronata","Turdus_migratorius")
-
-ms6 <- max_speed %>% filter(species %in% mig6)
-mss6 <- max_speed_summary %>% filter(species %in% mig6)
-
-# plot yearly maximum migration speeds for each species
-max_mig_speed_plot <- ggplot(ms6, aes(year, max_speed, group=species)) + 
-  geom_hline(data = mss6, aes(yintercept = median), color = "indianred") +
-  geom_point(data=ms6) +
-  xlab("Year") + ylab("Max Speed (km/day)") + 
-  scale_x_continuous(breaks=seq(2008, 2024, 4)) +
-  theme_bw() + 
-  theme(text = element_text(size=10), 
-        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
-        legend.position="bottom") + 
-  facet_wrap(~species)
-max_mig_speed_plot
-
-ggsave(max_mig_speed_plot, filename = here("figs/6spp_MedMaxMigrationSpeed.png"), height = 5, width=8)
-```
-
 
 
 # estimate 3 migration dates, beginning of spring, peak latitude (summer), end of fall migration
@@ -581,14 +563,13 @@ return(df_dates)
 ```
 
 
-Run the estimate dates function with the migratory species, removing the partial migrants (method won't work and results won't make sense if there's not a clear breeding season max latitude and clear northward and southward migration movements).
+Run the estimate dates function with the migratory species (remove any partial migratory species). The method won't work and results won't make sense if there's not a clear breeding season max latitude and clear northward and southward migration movements.
 Save the results to an rds file and a text file for later use.
 ```{r}
-#test function
+#keep only the 6 migratory species to estimate dates, use mig_spp_dailylocs
+#time function, may take awhile
 Sys.time()
-#remove partial migrants
-dailylocs <- mig_spp_dailylocs %>% filter(!species %in% c("Sialia_sialis", "Sturnella_magna", "Sturnus_vulgaris"))
-migration_dates <- Est3MigrationDates(dailylocs)
+migration_dates <- Est3MigrationDates(mig_spp_dailylocs)
 Sys.time()
 
 # save result as an rds and text file
@@ -604,9 +585,20 @@ Calculate the median migration date for each species, across all the years
 #Calculate median migration date for each species
 median_migdates <- migration_dates %>%
   group_by(species) %>%
-  summarise(begin_spring = median(spring),
-            end_autumn = median(fall),
-            )
+  summarise(        
+    #spring onset        
+    spr_mean = mean(spring),
+    spr_sd = sd(spring),
+    spr_median = median(spring),
+    spr_Q1 = quantile(spring, probs=0.25),
+    spr_Q3 = quantile(spring, probs=0.75),
+    #autumn end
+    aut_mean = mean(fall),
+    aut_sd = sd(fall),
+    aut_median = median(fall),
+    aut_Q1 = quantile(fall, probs=0.25),
+    aut_Q3 = quantile(fall, probs=0.75)
+    )
 
 write.table(median_migdates, here(file = 'data/3-results_data/median_migration_dates.txt'), col.names = TRUE,
               row.names = FALSE, sep = "\t")
