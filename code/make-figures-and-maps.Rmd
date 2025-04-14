@@ -35,6 +35,26 @@ north_america <- map_data("world") %>%
   filter(region %in% c("USA", "Canada", "Mexico"))
 ```
 
+# Generate a map of the ERC range boundaries on North America
+
+plot the range shapefile on a map to check that it's working
+```{r}
+ggplot() + 
+  geom_sf(data = ERC_range_sf, fill = "darkolivegreen3", color = alpha("darkolivegreen")) +
+  geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black") +
+  coord_sf(xlim = c(-125, -70), ylim = c(25, 50)) + #show within all north america
+ # coord_sf(xlim = c(-105, -70), ylim = c(25, 50)) + #focus on eastern us
+ # labs(title = "W. Haas shapefile of J. virginiana range extent") +
+  theme_void() + 
+  theme(axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank())
+
+ggsave(filename = here("figs/ERC_range_map.png"), height = 4, width=5.5)
+```
+
+
 #Map an overview of winter occurrence for (1) fruit and (2) winter fruit feeder species
 
 **fruit feeder species**
