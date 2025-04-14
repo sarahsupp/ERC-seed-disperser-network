@@ -59,39 +59,35 @@ ggsave(filename = here("figs/ERC_range_map.png"), height = 4, width=5.5)
 
 **fruit feeder species**
 -   B. cedrorum
--   C. cardinalis
--   T. migratorius
 
 **Winter fruit feeder species**
--   H. mustelina
 -   M. polyglottus
 -   S. coronata
 -   S. sialis
--   S. carolinensis
+-   T. migratorius
 
 **Opportunistic fruit feeder species**
+-   C. cardinalis
 -   Corvus brachyrhynchos
 -   Cyanocitta cristata
 -   Dryobates pubescens
 -   Haemorhous purpureus
+-   H. mustelina
 -   Junco hyemalis
+-   S. carolinensis
 -   Sturnella magna
 -   Sturnus vulgaris
 
 make a version of effort that pools across years, just to show the general maps. Need to do some general processing first here. 
 ```{r}
 #subset to just the species that are winter fruit feeders
- wff <- dat_effort # %>%
-#   filter(species %in% c("Bombycilla_cedrorum", "Cardinalis_cardinalis",
-#                         "Turdus_migratorius",
-#                         "Hylocichla_mustelina", "Mimus_polyglottus", 
-#                         "Setophaga_coronata", "Sialia_sialis", 
-#                         "Sitta_carolinensis"))
+ wff <- dat_effort
 
 # add a column for month, to identify winter fruiting season
 unique_dates <- wff %>%
   distinct(year, day) %>%
   mutate(month = month(as.Date(day - 1, origin = paste0(year, "-01-01"))))
+
 # join back to the main dataframe
 wff <- wff %>%
   left_join(unique_dates, by = c("year", "day"))
@@ -109,11 +105,11 @@ wff_sum <- wff %>%
 # label species by diet
 wff_sum <- wff_sum %>%
   mutate(diet = ifelse(species %in% 
-                         c("Bombycilla_cedrorum", "Cardinalis_cardinalis",
-                           "Turdus_migratorius"),"fruit feeder", 
-                       ifelse( species %in% c("Hylocichla_mustelina", 
-                               "Mimus_polyglottus", "Setophaga_coronata",
-                               "Sialia_sialis", "Sitta_carolinensis"), 
+                         c("Bombycilla_cedrorum"),"fruit feeder", 
+                       ifelse( species %in% c("Mimus_polyglottos",
+                                              "Setophaga_coronata",
+                                              "Sialia_sialis",
+                                              "Turdus_migratorius"), 
                        "winter fruit feeder",
                        "opportunistic")))
 
@@ -206,9 +202,9 @@ ggplot() +
           axis.title.x=element_blank(),
           axis.title.y=element_blank(),
           legend.position="bottom") +
-  facet_wrap(~species, ncol=3)
+  facet_wrap(~species, ncol=2)
 
-ggsave(filename = here("figs/winter-fruit-feeder_map.png"), height = 11, width=8, bg="white")
+ggsave(filename = here("figs/map_winter-fruit-feeder.png"), height = 6, width=8, bg="white")
 ```
 
 ## Fruit feeder map
@@ -224,16 +220,16 @@ ggplot() +
   geom_sf(data = ERC_range_sf, fill = NA, color ="black", linewidth=0.25) +  
   scale_fill_viridis_c(option = "plasma", limits=c(0,upper_bound) ) +
   coord_sf(xlim = c(-106, -70), ylim = c(29, 49)) + #set limits without distorting boundaries
-  labs(title = "fruit feeder frequency (Oct-Mar)") +
+  labs(title = "frugivore frequency (Oct-Mar)") +
   theme_void() + 
   theme(axis.line=element_blank(),axis.text.x=element_blank(),
           axis.text.y=element_blank(),axis.ticks=element_blank(),
           axis.title.x=element_blank(),
           axis.title.y=element_blank(),
           legend.position="bottom") +
-  facet_wrap(~species, ncol=3)
+  facet_wrap(~species, ncol=1)
 
-ggsave(filename = here("figs/fruit-feeder_map.png"), height = 11, width=8, bg="white")
+ggsave(filename = here("figs/map_frugivore_map.png"), height = 3, width=4, bg="white")
 ```
 
 ## opportunistic feeder map
@@ -256,8 +252,8 @@ ggplot() +
           axis.title.x=element_blank(),
           axis.title.y=element_blank(),
           legend.position="bottom") +
-  facet_wrap(~species, ncol=3)
+  facet_wrap(~species, ncol=2)
 
-ggsave(filename = here("figs/opportunistic-feeder_map.png"), height = 11, width=8, ncol=3, bg="white")
+ggsave(filename = here("figs/map_opportunistic-feeder.png"), height = 12, width=8, bg="white")
 ```
 
