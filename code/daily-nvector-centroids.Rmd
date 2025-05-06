@@ -48,7 +48,8 @@ Each species has it's own merged data file, and they will all be brought togethe
 
 ```{r}
 # list prepared .rds files for each of the species
-files = list.files(path=here("data/2-intermediate_eBird_data/species_effort/"), pattern=glob2rx("dat_effort*.rds"))
+files = list.files(path=here("data/2-intermediate_eBird_data/species_effort/"),
+                   pattern=glob2rx("dat_effort*.rds"))
 
 # initialize empty dataframe
 spdata <- data.frame(POLYFID=integer(), year=integer(), day=integer(),
@@ -60,6 +61,9 @@ for (i in files) {
   dat <- readRDS(paste0(here("data/2-intermediate_eBird_data/species_effort/"),(i)))
   spdata <- bind_rows(spdata, dat)
 }
+
+# write a copy of the species-merged data, before the next steps
+saveRDS(spdata, file=here("data/2-intermediate_eBird_data/dat_effort_merged.rds"))
 ```
 
 
