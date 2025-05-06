@@ -21,7 +21,13 @@ library(viridis)
 import species and geographic range data
 ```{r}
 #import the species counts and effort data
-dat_effort <- readRDS(here("data/2-intermediate_eBird_data/dat_effort_filtered.rds"))
+dat_effort <- readRDS(here("data/2-intermediate_eBird_data/dat_effort_merged.rds"))
+
+#set filter to only include occurrences within ERC range (-106 Longitude)
+# x = longitude , y = latitude
+dat_effort <- dat_effort %>%
+  dplyr::filter(x >= -106) 
+
 
 #import the J. virginiana geographic range
 ERC_range_sf <- st_read(here("data/shapefiles/ERC_shapefile_2023/junivirg.shp"), quiet = TRUE) %>%
@@ -172,42 +178,23 @@ upper_bound <- quantile(wff_ERC_in$freq, 0.975)
 # the upper outliers are the ones that will mess with the visual map fill
 wff_ERC_outliers <- wff_ERC_in %>%
   filter(freq > upper_bound)
+
+# subset the dataframe to rows where freq is a lower outlier
+# the lower outliers could help show where it is rare
+wff_ERC_low_outliers <- wff_ERC_in %>%
+  filter(freq < lower_bound)
 ```
 
 
 
-I want to see a map showing where the winter fruit feeder species are located, during the fruiting season (November-February). Plot where fill is count/effort, so it shows some measure of the likelihood that bird is present or abundant, given the total eBirder effort in the cell. Only plot occurrence for the cells that fall within the J. virginiana range. 
+I want to see a map showing where the winter fruit feeder species are located, during the fruiting season (October-March). Plot where fill is count/effort, so it shows some measure of the likelihood that bird is present or abundant, given the total eBirder effort in the cell. Only plot occurrence for the cells that fall within the J. virginiana range. 
 
 Let's plot summed winter fruit feeder frequency on a map. 
 Note: Here we use the wff_ERC_in to show frequency as fill values. 
 We overlay a polygon showing the ERC range extent on top of the hexagons.
 
-## Winter fruit feeder map
-```{r}
-#  frequency of winter fruit feeders
-ggplot() + 
-  geom_sf(data = wff_ERC_in %>% filter(diet == "winter fruit feeder" &
-                                         freq < upper_bound),
-          aes(fill=freq), color = alpha("white", 0.4 )) +
-  geom_sf(data=wff_ERC_outliers %>% filter(diet == "winter fruit feeder"), 
-          col="red", fill="lemonchiffon") +
-  geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black", linewidth=0.10) +
-  geom_sf(data = ERC_range_sf, fill = NA, color ="black", linewidth=0.25) +  
-  scale_fill_viridis_c(option = "plasma", limits=c(0,upper_bound)) +
-  coord_sf(xlim = c(-106, -70), ylim = c(29, 49)) + #set limits without distorting boundaries
-  labs(title = "Winter fruit feeder frequency (Oct-Mar)") +
-  theme_void() + 
-  theme(axis.line=element_blank(),axis.text.x=element_blank(),
-          axis.text.y=element_blank(),axis.ticks=element_blank(),
-          axis.title.x=element_blank(),
-          axis.title.y=element_blank(),
-          legend.position="bottom") +
-  facet_wrap(~species, ncol=2)
 
-ggsave(filename = here("figs/map_winter-fruit-feeder.png"), height = 6, width=8, bg="white")
-```
-
-## Fruit feeder map
+## Frugivore map
 ```{r}
 #  frequency of fruit feeders
 ggplot() + 
@@ -216,6 +203,8 @@ ggplot() +
           aes(fill=freq), color = alpha("white", 0.4 )) +
     geom_sf(data=wff_ERC_outliers %>% filter(diet == "fruit feeder"), 
           col="red", fill="lemonchiffon") +
+      geom_sf(data=wff_ERC_low_outliers %>% filter(diet == "fruit feeder"), 
+          col="darkblue", fill="lightcyan") +
   geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black", linewidth=0.10) +
   geom_sf(data = ERC_range_sf, fill = NA, color ="black", linewidth=0.25) +  
   scale_fill_viridis_c(option = "plasma", limits=c(0,upper_bound) ) +
@@ -232,6 +221,35 @@ ggplot() +
 ggsave(filename = here("figs/map_frugivore_map.png"), height = 3, width=4, bg="white")
 ```
 
+
+## Winter fruit feeder map
+```{r}
+#  frequency of winter fruit feeders
+ggplot() + 
+  geom_sf(data = wff_ERC_in %>% filter(diet == "winter fruit feeder" &
+                                         freq < upper_bound),
+          aes(fill=freq), color = alpha("white", 0.4 )) +
+  geom_sf(data=wff_ERC_outliers %>% filter(diet == "winter fruit feeder"), 
+          col="red", fill="lemonchiffon") +
+        geom_sf(data=wff_ERC_low_outliers %>% filter(diet == "fruit feeder"), 
+          col="darkblue", fill="lightcyan") +
+  geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black", linewidth=0.10) +
+  geom_sf(data = ERC_range_sf, fill = NA, color ="black", linewidth=0.25) +  
+  scale_fill_viridis_c(option = "plasma", limits=c(0,upper_bound)) +
+  coord_sf(xlim = c(-106, -70), ylim = c(29, 49)) + #set limits without distorting boundaries
+  labs(title = "Winter fruit feeder frequency (Oct-Mar)") +
+  theme_void() + 
+  theme(axis.line=element_blank(),axis.text.x=element_blank(),
+          axis.text.y=element_blank(),axis.ticks=element_blank(),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position="bottom") +
+  facet_wrap(~species, ncol=2)
+
+ggsave(filename = here("figs/map_winter-fruit-feeder.png"), height = 6, width=8, bg="white")
+```
+
+
 ## opportunistic feeder map
 ```{r}
 #  frequency of fruit feeders
@@ -241,6 +259,8 @@ ggplot() +
           aes(fill=freq), color = alpha("white", 0.4 )) +
     geom_sf(data=wff_ERC_outliers %>% filter(diet == "opportunistic"), 
           col="red", fill="lemonchiffon") +
+        geom_sf(data=wff_ERC_low_outliers %>% filter(diet == "fruit feeder"), 
+          col="darkblue", fill="lightcyan") +
   geom_polygon(data=north_america, aes(x=long, y=lat, group=group), fill=NA, color="black", linewidth=0.10) +
   geom_sf(data = ERC_range_sf, fill = NA, color ="black", linewidth=0.25) +  
   scale_fill_viridis_c(option = "plasma", limits=c(0,upper_bound)) +
