@@ -42,7 +42,8 @@ This data can be queried directly from eBird using their website or using the `a
 | 1-raw_eBird_data/locs.Rdata  | latitude and longitude locations of hexagonal polygon grid cells  | raw data  |
 | 1-raw_eBird_data/community/iNEXT-results.Rdata | richness for cells and winter seasons | raw data |
 | 2-intermediate_eBird_data/species_effort/dat_effort_[species name].rds  | partly processed files that merge the species occurrences with the effort datasets for analysis  | merged data  |
-| 2-intermediate_eBird_data/dat_effort_filtered.rds  | merged datafile with all species, created using the files above in migration-paths.Rmd  | merged data  |
+| 2-intermediate_eBird_data/dat_effort_merged.rds  | merged datafile with all species, created using the files above in daily-nvector-centroids.Rmd  | merged data  |
+| 2-intermediate_eBird_data/dat_effort_filtered.rds  | merged datafile filtered to 103 lon, created using the files above in daily-nvector-centroids.Rmd  | merged data  |
 | 2-intermediate_eBird_data/df_nvector.rds  | adds lats/lons as n-vector representation to dat_effort_2023.rds | processed data  |
 | 2-intermediate_eBird_data/weighted_mean_locs.rds | calculates weighted mean locations for each day, using the nvector estimates | processed data |
 | 2-intermediate_eBird_data/mig_spp_dailylocs.rds | adds gam estimated daily locations | processed data |
