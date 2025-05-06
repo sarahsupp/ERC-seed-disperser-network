@@ -11,6 +11,7 @@ I'm using this file to generate figures and maps to accompany the eBird + ERC ma
 knitr::opts_chunk$set(echo = TRUE)
 
 library(dggridR)
+library(ggpubr)
 library(here)
 library(lubridate)
 library(sf)
@@ -86,7 +87,7 @@ ggsave(filename = here("figs/map_ERC_range.png"), height = 4, width=5.5)
 
 make a version of effort that pools across years, just to show the general maps. Need to do some general processing first here. 
 ```{r}
-#subset to just the species that are winter fruit feeders
+#work on a different subset of the data that focus just on the winter months for seed dispersal
  wff <- dat_effort
 
 # add a column for month, to identify winter fruiting season
@@ -275,6 +276,97 @@ ggplot() +
   facet_wrap(~species, ncol=2)
 
 ggsave(filename = here("figs/map_opportunistic-feeder.png"), height = 12, width=8, bg="white")
+```
+### Is there a significant trend for changing occurrence frequency across latitude or longitude?
+
+Examine patterns in latitude and longitude for occurrence frequency in winter months, for each species. Data are pooled across the years.
+
+Calculate the slopes of frequency change across latitude or longitude. Plot theresults. 
+
+See if there is a signal by longitude (would indicate a E-W influence or trend)
+```{r}
+ggscatter(data=wff_ERC_in, x="cell_lon", y="freq", add="reg.line", alpha=0.25) +
+  stat_cor(label.y = 0.3, aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  stat_regline_equation(label.y = 0.24) + 
+  geom_hline(yintercept = 0, linetype="dashed") +
+  theme(text = element_text(size=9), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  #scale_x_continuous(breaks=seq(2008, 2024, 6)) +
+  xlab("Cell Longitude") + ylab("frequency") + 
+  theme_bw() + 
+  facet_wrap(~species, ncol=3)
+
+ggsave(filename = here("figs/spp-occ-freq_scatter-longitude.png"), height = 11, width=8, bg="white")
+
+```
+
+See if there is a signal by Latitude (would indicate a N-S influence or trend)
+```{r}
+ggscatter(data=wff_ERC_in, x="cell_lat", y="freq", add="reg.line", alpha=0.25) +
+  stat_cor(label.y = 0.3, aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  stat_regline_equation(label.y = 0.24) + 
+  geom_hline(yintercept = 0, linetype="dashed") +
+  theme(text = element_text(size=9), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  #scale_x_continuous(breaks=seq(2008, 2024, 6)) +
+  xlab("Cell Latitude") + ylab("frequency") + 
+  theme_bw() + 
+  facet_wrap(~species, ncol=3)
+
+ggsave(filename = here("figs/spp-occ-freq_scatter-latitude.png"), height = 11, width=8, bg="white")
+
+```
+
+
+Calculate a summary of frequency for each species
+```{r}
+wff_ERC_in_summ <- wff_ERC_in %>%
+  group_by(species) %>%
+  summarize(mean = mean(freq),
+            median = median(freq),
+            sd = sd(freq),
+            min = min(freq), 
+            max = max(freq),
+            Q1 = quantile(freq)[["25%"]],
+            Q3 = quantile(freq)[["75%"]]
+            )
+
+# save the result as an rds file and as a txt file
+saveRDS(wff_ERC_in_summ, here("data/3-results_data/occurrence_frequency_summary.rds"))
+write.table(wff_ERC_in_summ, here(file = 'data/3-results_data/occurrence_frequency_summary.txt'),
+            col.names = TRUE, row.names = FALSE, sep = "\t")
+```
+
+Check if the migration speeds differ significantly across seasons, using a t-test
+```{r}
+#import the max migration speed data
+max_speed <- readRDS(here("data/3-results_data/max_speed.rds"))
+
+
+library(purrr)
+library(broom)
+
+# Step 1: Define a function to run the t-test and extract results
+run_speed_ttest <- function(df) {
+  ttest_result <- t.test(df$spr_max_speed, df$aut_max_speed, paired = TRUE)
+  tidy(ttest_result) %>%
+    select(estimate, conf.low, conf.high, p.value)
+}
+
+# Step 2: Group by species and apply the function
+speed_ttest_results <- max_speed %>%
+  group_by(species) %>%
+  nest() %>%
+  mutate(test_stats = map(data, run_speed_ttest)) %>%
+  unnest(test_stats) %>%
+  rename(
+    mean_diff = estimate,
+    ci_low = conf.low,
+    ci_high = conf.high
+  ) %>%
+  select(-data)
+
+write.table(speed_ttest_results, 
+            here(file = 'data/3-results_data/speed_ttest_results.txt'),
+            col.names = TRUE, row.names = FALSE, sep = "\t")
 ```
 
 
