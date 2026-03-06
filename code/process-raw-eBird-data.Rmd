@@ -1,6 +1,6 @@
 ---
 title: "process-eBird-data"
-author: "Sarah Supp"
+author: "Sarah Supp, Cam Phan"
 date: "2/19/2021"
 output: html_document
 ---
