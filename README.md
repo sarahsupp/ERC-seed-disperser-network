@@ -5,7 +5,7 @@
 Evaluate abundance and distribution of a multi-species avian seed dispersal network for Eastern Red Cedar trees. The code and data in this repository support the NSF award #1915913 (2019-2025), part of a Multi-Institution Collaborative award that includes researchers at Denison University, Kent State University, Ohio State University, and Holden Arboretum. The results of this analysis partly support a spatially explicit model for eastern red cedar range expansion (lead author, Gil Bohrer, Ohio State University) and a scientific paper about the spatial and temporal distribution and co-occurence of 15 bird species known to forage on and spread eastern redcedar fruits.
 This project is currently under development (2020).
 
-**Code Authors and Contributors:** Sarah Supp, Jessy Niu, Kairuo Yan, Esther Lee, Maximilian Wisnefski (Denison University), Frank A. La Sorte (Cornell University)
+**Code Authors and Contributors:** Sarah Supp, Cam Phan, Jessy Niu, Kairuo Yan, Esther Lee, Maximilian Wisnefski (Denison University), Frank A. La Sorte (Cornell University)
 
 **Contact Email:** supps@denison.edu
 
