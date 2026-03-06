@@ -8,11 +8,11 @@ output: html_document
 # INTRODUCTION
 
 ## Code for cedar waxwing project, modified from eBird migration project (Supp et al. 2015)
-(c) 2020-2023, Niu, Lee, Wisnefski, and Supp (PI)
+(c) 2020-2026, Niu, Lee, Wisnefski, Phan, and Supp (PI)
 supps@denison.edu
 Denison University
 Code is under development, part of NSF Multi-Institution Collaborative Award (2019-2025)
-modified from previous code developed for Supp et al. 2015 hummingbird paper (Ecosphere)
+modified from previous code developed for Supp et al. 2015 hummingbird paper (Ecosphere) and previously organized in GitHub repo https://github.com/sarahsupp/ERC-bird-dispersal
 
 Birds evaluated include: 
 * Cedar Waxwing (CEWA) _Bombycilla cedrorum_
