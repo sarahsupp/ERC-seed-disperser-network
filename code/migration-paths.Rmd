@@ -41,12 +41,12 @@ library(here)
 library(broom)
 library(devtools)
 library(remotes)
-devtools::install_github('r-barnes/dggridR', vignette=TRUE, force = TRUE)
+#devtools::install_github('r-barnes/dggridR', vignette=TRUE, force = TRUE)
 library(dggridR)
 library(features)
 library(gamm4) 
 library(geosphere)
-devtools::install_github("dkahle/ggmap")
+#devtools::install_github("dkahle/ggmap")
 library(ggmap)
 library(ggpubr)
 library(lubridate)
@@ -235,7 +235,7 @@ In this function, we use parameters as follows:
 * gamma = 1.5
 
 ```{r}
-Estimatedailylocs = function(dat) {
+Estimatedailylocs = function(dat, k_val) {
 
   years <- unique(dat$year)
   spp <- unique(dat$species)
@@ -252,8 +252,11 @@ Estimatedailylocs = function(dat) {
       sub_weighted_mean_locs <- dat %>%
         filter(year == i & species == s)
 
-      lon_gam = gam(weighted_lon ~ s(day, k=20), data = sub_weighted_mean_locs, gamma = 1.5)
-      lat_gam = gam(weighted_lat ~ s(day, k=20), data = sub_weighted_mean_locs, gamma = 1.5)
+      # Skip if not enough data points for the chosen k
+      if(nrow(sub_weighted_mean_locs) <= k_val) next
+
+      lon_gam = gam(weighted_lon ~ s(day, k=k_val), data = sub_weighted_mean_locs, gamma = 1.5)
+      lat_gam = gam(weighted_lat ~ s(day, k=k_val), data = sub_weighted_mean_locs, gamma = 1.5)
       xpred = data.frame(day=sort(unique(sub_weighted_mean_locs$day)))
       lonpred = predict(lon_gam, newdata = xpred, type="response", se.fit=T)
       latpred = predict(lat_gam, newdata = xpred, type="response", se.fit=T)
@@ -271,6 +274,22 @@ Estimatedailylocs = function(dat) {
     }
   }
   return(df_dailylocs)
+}
+# Define k values to test
+k_to_test <- c(10, 20, 30, 40)
+
+# Initialize master comparison dataframe
+final_comparison <- data.frame()
+
+# Loop through k values
+for(k in k_to_test) {
+  message(paste("Running GAM with k =", k))
+  
+  # Run function and store results
+  k_results <- Estimatedailylocs_k(weighted_mean_locs, k)
+  
+  # Append to master dataframe
+  final_comparison <- data.frame(bind_rows(final_comparison, k_results))
 }
 ```
 
