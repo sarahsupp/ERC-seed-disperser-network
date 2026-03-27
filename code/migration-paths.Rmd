@@ -315,7 +315,10 @@ for(k in k_to_test) {
   }
 }
 end=Sys.time()
-print(paste0("run-time for cewa was ", round(end-start, 2), " seconds, for ", 
+runtime=end-start #calculate runtime
+
+# Report runtime statistics to estimate what is needed for OSC
+print(paste0("run-time for cewa was ", round(runtime, 2), " seconds, for ", 
              nrow(weighted_mean_locs_cewa), " rows"))
 # Print key OS details
 session_info <- Sys.info()
@@ -325,10 +328,46 @@ print(paste("Release:", session_info["release"]))
 print(paste("Version:", session_info["version"]))
 # Print key R version details
 print(R.version.string)
+
+# what percent of the total data is cedar waxwing?
+prop_rows <- nrow(weighted_mean_locs_cewa)/nrow(weighted_mean_locs)
+
+# do some math...
+est_runtime = runtime/prop_rows
 ```
 
 Run the GAM function on the weighted mean dataframe for all species.
-Note: this verison will use the defaults of k=20 and gamma=1
+Note: this version uses all of the values of k and gamma
+```{r}
+# Define k values to test
+k_to_test <- c(10, 20, 30, 40)
+
+# Define gamma values to test
+gamma_to_test <- c(1, 1.5, 2)
+
+# Initialize master comparison dataframe
+final_comparison <- data.frame()
+
+start=Sys.time()
+# Loop through k values
+for(k in k_to_test) {
+  for (g in gamma_to_test) {
+    message(paste("Running GAM with k =", k, "and gamma = ", g))
+    
+    # Run function and store results
+    k_results <- Estimatedailylocs(weighted_mean_locs, k, g)
+    
+    # Append to master dataframe
+    final_comparison <- data.frame(bind_rows(final_comparison, k_results))
+  }
+}
+end=Sys.time()
+runtime=end-start #calculate runtime
+```
+
+
+Run the GAM function on the weighted mean dataframe for all species.
+Note: this version will use the defaults of k=20 and gamma=1
 ```{r}
 #get daily centroid locations for all species in all years
 dailylocs <- Estimatedailylocs(weighted_mean_locs)
