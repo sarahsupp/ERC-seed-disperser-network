@@ -230,13 +230,16 @@ In the GAM, we can use the weighted mean locations (latitude and longitude) that
 
 This code chunk stores a function to use a GAM model to estimate smoothed centroids that represent the migration path. It uses the weighted mean latitude and longitude as inputs and returns new daily centroids based on the predicted model fits, along with lower and upper confidence intervals (LCI, UCI).
 
-In this function, we use parameters as follows: 
+**For the main results reported in the manuscript**, we use parameters as follows: 
 * k = 20
 * gamma = 1.5
 
 ```{r}
-Estimatedailylocs = function(dat, k_val) {
-
+Estimatedailylocs = function(dat, k_val=20, g_val=1) {
+# This function estimates the smoothed daily location (centroid) for each species across all the occurrence data points. It sets default values of k=20 and gamma=1 in cases where k_val and/or g_val are not specified.
+# Inputs: a dataframe containing the weighted mean locations for a species on a day in a year
+# Outputs: a dataframe of the predicted locations after the gam is applied
+  
   years <- unique(dat$year)
   spp <- unique(dat$species)
   
@@ -255,8 +258,8 @@ Estimatedailylocs = function(dat, k_val) {
       # Skip if not enough data points for the chosen k
       if(nrow(sub_weighted_mean_locs) <= k_val) next
 
-      lon_gam = gam(weighted_lon ~ s(day, k=k_val), data = sub_weighted_mean_locs, gamma = 1.5)
-      lat_gam = gam(weighted_lat ~ s(day, k=k_val), data = sub_weighted_mean_locs, gamma = 1.5)
+      lon_gam = gam(weighted_lon ~ s(day, k=k_val), data = sub_weighted_mean_locs, gamma=g_val)
+      lat_gam = gam(weighted_lat ~ s(day, k=k_val), data = sub_weighted_mean_locs, gamma=g_val)
       xpred = data.frame(day=sort(unique(sub_weighted_mean_locs$day)))
       lonpred = predict(lon_gam, newdata = xpred, type="response", se.fit=T)
       latpred = predict(lat_gam, newdata = xpred, type="response", se.fit=T)
@@ -275,25 +278,57 @@ Estimatedailylocs = function(dat, k_val) {
   }
   return(df_dailylocs)
 }
+```
+
+This code chunk tests different values of k to check sensitivity of model to different parameter settings.
+- test values of k: 10, 20, 30, 40
+  - k sets the upper limit on "wiggliness" (df). Smaller k could underfit the model and higher k could overfit it. Higher k comes with a smoothing penalty.
+- test values of gamma: 1, 1.5, 2
+  - gamma increases smoothing and inflates the penalty on wiggly model terms
+  
+Records the runtime for a subset of the data (cedar waxwing only) to help estimate how long the OSC will need.
+```{r}
+# Cedar Waxwing subset to test
+weighted_mean_locs_cewa <- weighted_mean_locs %>% 
+  filter(species == "Bombycilla_cedrorum")
+
 # Define k values to test
 k_to_test <- c(10, 20, 30, 40)
+
+# Define gamma values to test
+gamma_to_test <- c(1, 1.5, 2)
 
 # Initialize master comparison dataframe
 final_comparison <- data.frame()
 
+start=Sys.time()
 # Loop through k values
 for(k in k_to_test) {
-  message(paste("Running GAM with k =", k))
-  
-  # Run function and store results
-  k_results <- Estimatedailylocs_k(weighted_mean_locs, k)
-  
-  # Append to master dataframe
-  final_comparison <- data.frame(bind_rows(final_comparison, k_results))
+  for (g in gamma_to_test) {
+    message(paste("Running GAM with k =", k, "and gamma = ", g))
+    
+    # Run function and store results
+    k_results <- Estimatedailylocs(weighted_mean_locs_cewa, k, g)
+    
+    # Append to master dataframe
+    final_comparison <- data.frame(bind_rows(final_comparison, k_results))
+  }
 }
+end=Sys.time()
+print(paste0("run-time for cewa was ", round(end-start, 2), " seconds, for ", 
+             nrow(weighted_mean_locs_cewa), " rows"))
+# Print key OS details
+session_info <- Sys.info()
+print(paste("Operating System:", session_info["sysname"]))
+print(paste("Node Name:", session_info["nodename"]))
+print(paste("Release:", session_info["release"]))
+print(paste("Version:", session_info["version"]))
+# Print key R version details
+print(R.version.string)
 ```
 
 Run the GAM function on the weighted mean dataframe for all species.
+Note: this verison will use the defaults of k=20 and gamma=1
 ```{r}
 #get daily centroid locations for all species in all years
 dailylocs <- Estimatedailylocs(weighted_mean_locs)
