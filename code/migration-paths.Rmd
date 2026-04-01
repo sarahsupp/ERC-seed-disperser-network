@@ -363,6 +363,8 @@ for(k in k_to_test) {
 }
 end=Sys.time()
 runtime=end-start #calculate runtime
+
+saveRDS(final_comparison, "mig_spp_dailylocs_allparam.RDS")
 ```
 
 
