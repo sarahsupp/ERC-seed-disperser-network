@@ -244,7 +244,8 @@ Estimatedailylocs = function(dat, k_val=20, g_val=1) {
   spp <- unique(dat$species)
   
   #initialize empty dataframe
-  df_dailylocs <- data.frame(species=character(), day=integer(), year=integer(), 
+  df_dailylocs <- data.frame(k=numeric(), g=numeric(), 
+                             species=character(), day=integer(), year=integer(), 
                              month=integer(), winter=character(), lon=numeric(), 
                              lat=numeric(), lon_se=numeric(), lat_se=numeric(), 
                              lon_LCI=numeric(), lon_UCI=numeric(),
@@ -268,7 +269,7 @@ Estimatedailylocs = function(dat, k_val=20, g_val=1) {
       lat_lowerCI = latpred$fit - 1.96 * latpred$se.fit  # Lower bound of 95% CI Latitude centroid
       lat_upperCI = latpred$fit + 1.96 * latpred$se.fit  # Upper bound of 95% CI Latitude centroid
 
-      preds =  data.frame(species = s, day = xpred$day, year = i,
+      preds =  data.frame(k = k_val, g = g_val, species = s, day = xpred$day, year = i,
                           month = sub_weighted_mean_locs$month, winter = sub_weighted_mean_locs$winter,
                           lon = lonpred$fit, lat = latpred$fit, lon_se = lonpred$se.fit, 
                           lat_se = latpred$se.fit, lon_LCI = lon_lowerCI, lon_UCI = lon_upperCI,
